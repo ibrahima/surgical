@@ -54,6 +54,7 @@ class World
 {
 	public:
 		World();
+		World(vector<Vector3d> vertices);
 		World(const World& rhs);
 		~World();
 
@@ -142,6 +143,7 @@ class World
 		
 		//Init thread
 		void initThread();
+		void initThread(vector<Vector3d> vertices);
 		void initLongerThread();
 		void initRestingThread();
 		

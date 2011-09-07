@@ -103,6 +103,70 @@ World::World(const World& rhs)
   initializeThreadsInEnvironment();
 }
 
+World::World(vector<Vector3d> vertices)
+{
+	//any of these pushes two threads into threads.
+	initThread(vertices);
+  //initLongerThread();
+  //initRestingThread();
+	ThreadConstrained ttc = *threads.front();
+	vector<Thread*> ttt;
+	ttc.getThreads(ttt);
+	for(int i = 0; i<ttt.size(); i++){
+		Thread* tth = ttt[i];
+		tth->print_vertices();
+	}
+	//setting up control handles
+	cursors.push_back(new Cursor(Vector3d::Zero(), Matrix3d::Identity(), this, NULL));
+	cursors.push_back(new Cursor(Vector3d::Zero(), Matrix3d::Identity(), this, NULL));
+
+	//setting up objects in environment
+	//InfinitePlane* plane = new InfinitePlane(Vector3d(0.0, -30.0, 0.0), Vector3d(0.0, 1.0, 0.0), "../utils/textures/checkerBoardSquare32.bmp", this);
+	InfinitePlane* plane = new InfinitePlane(Vector3d(0.0, -30.0, 0.0), Vector3d(0.0, 1.0, 0.0), 0.6, 0.6, 0.6, this);
+	objs.push_back(plane);
+	//objs.push_back(new TexturedSphere(Vector3d::Zero(), 150.0, "../utils/textures/checkerBoardRect16.bmp", this));
+
+	//objs.push_back(new Box(plane->getPosition() + Vector3d(0.0, 15.0, 0.0), Matrix3d::Identity(), Vector3d(15,15,15), 0.0, 0.5, 0.7, this));
+
+	objs.push_back(new Needle(plane->getPosition() + Vector3d(0.0, 15.0, 0.0), Matrix3d::Identity(), 150.0, 5.0, 0.3, 0.3, 0.3, this));
+
+	//setting up end effectors
+	vector<Vector3d> positions;
+	vector<Matrix3d> rotations;
+	threads[0]->getConstrainedTransforms(positions, rotations);
+
+	objs.push_back(new EndEffector(positions[0], rotations[0], this, threads[0], 0));
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == 0);
+
+	objs.push_back(new EndEffector(positions[1], rotations[1], this, threads[0], threads[0]->numVertices()-1));
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == 1);
+
+//	threads[1]->getConstrainedTransforms(positions, rotations);
+//
+//	objs.push_back(new EndEffector(positions[0], rotations[0], this, threads[1], 0));
+//	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == 0);
+//
+//	objs.push_back(new EndEffector(positions[1], rotations[1], this, threads[1], threads[1]->numVertices()-1));
+//	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == 1);
+
+	objs.push_back(new EndEffector(plane->getPosition() + Vector3d(30.0, EndEffector::short_handle_r, 0.0), (Matrix3d) AngleAxisd(-M_PI/2.0, Vector3d::UnitY()) * AngleAxisd(M_PI/2.0, Vector3d::UnitX()), this));
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == -1);
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint == -1);
+
+	objs.push_back(new EndEffector(plane->getPosition() + Vector3d(60.0, EndEffector::short_handle_r, 0.0), (Matrix3d) AngleAxisd(-M_PI/2.0, Vector3d::UnitY()) * AngleAxisd(M_PI/2.0, Vector3d::UnitX()), this));
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint_ind == -1);
+	assert((TYPE_CAST<EndEffector*>(objs.back()))->constraint == -1);
+
+	initializeThreadsInEnvironment();
+	ThreadConstrained tc = *threads.front();
+	vector<Thread*> tt;
+	tc.getThreads(tt);
+	for(int i = 0; i<tt.size(); i++){
+		Thread* th = tt[i];
+		th->print_vertices();
+	}
+}
+
 World::~World()
 {
 	clearObjs();
@@ -757,7 +821,42 @@ void World::initThread()
 #endif
 	}
 }
+void World::initThread(vector<Vector3d> vertices)
+{
+  int numInit = (vertices.size()-5)/2;
 
+  vector<double> angles;
+  vector<double> lengths;
+
+  for (int i=0; i < vertices.size(); i++)
+		angles.push_back(0.0);
+
+  for (int i=0; i < vertices.size()-1; i++)
+  {
+	  Vector3d diff = vertices[i+1] - vertices[i];
+	  lengths.push_back(diff.norm());
+  }
+
+  Matrix3d start_rotation0 = Matrix3d::Identity();
+  Matrix3d end_rotation0 = Matrix3d::Identity();//(Matrix3d) AngleAxisd(-M_PI/2.0, Vector3d::UnitZ());
+
+  ThreadConstrained* thread0 = new ThreadConstrained(vertices, angles, lengths, start_rotation0, end_rotation0, this);
+  threads.push_back(thread0);
+
+  for (int i=0; i<vertices.size(); i++)
+		vertices[i](0) *= -1;
+
+	for (int thread_ind=0; thread_ind < threads.size(); thread_ind++) {
+#ifndef ISOTROPIC
+		Matrix2d B = Matrix2d::Zero();
+		B(0,0) = 10.0;
+		B(1,1) = 1.0;
+		threads[thread_ind]->set_coeffs_normalized(B, 3.0, 1e-4);
+#else
+  	threads[thread_ind]->set_coeffs_normalized(1.0, 3.0, 1e-4);
+#endif
+	}
+}
 void World::initLongerThread()
 {
   int numInit = 5;

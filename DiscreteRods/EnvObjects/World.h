@@ -61,10 +61,6 @@ class World
 		void writeToFile(ofstream& file);
 		World(ifstream& file);
 
-		//manipulate threads and objects in environment
-		//void addThread(ThreadConstrained* thread);
-		//void addEnvObj(EnvObject* obj);
-
 		template <class T> void getObjects(vector<T*>& objects)
 		{
 			objects.clear();
@@ -111,6 +107,7 @@ class World
 		EndEffector* closestEndEffector(Vector3d tip_pos);
 	
 		void draw(bool examine_mode = false);
+		void drawDebug();
 
 		//applying control
 		//the controls should know to whom they are applying control.
@@ -143,7 +140,7 @@ class World
 		//Init thread
 		void initThread();
 		void initLongerThread();
-		void initRestingThread();
+		void initRestingThread(int opt);
 		
 	private:
 		vector<Cursor*> cursors; //control handler

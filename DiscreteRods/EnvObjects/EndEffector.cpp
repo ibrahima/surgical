@@ -7,6 +7,7 @@ EndEffector::EndEffector(const Vector3d& pos, const Matrix3d& rot, World* w, Thr
 	: EnvObject(default_color0, default_color1, default_color2, END_EFFECTOR)
 	, thread(t)
 	, constraint(constrained_vertex_num)
+	, needle(NULL)
 	, world(w)
 	, open(false)
 {
@@ -91,6 +92,7 @@ EndEffector::EndEffector(const EndEffector& rhs, World* w)
 	: EnvObject(rhs.color0, rhs.color1, rhs.color2, rhs.type)
 	, thread(rhs.thread)
 	, constraint(rhs.constraint)
+	, needle(NULL)
 	, world(w)
 	, open(rhs.open)
 {
@@ -156,6 +158,7 @@ void EndEffector::writeToFile(ofstream& file)
 EndEffector::EndEffector(ifstream& file, World* w)
 	: EnvObject(default_color0, default_color1, default_color2, END_EFFECTOR)
 	, thread(NULL)
+	, needle(NULL)
 	, world(w)
 {
 	for (int i=0; i<3; i++)
@@ -198,26 +201,70 @@ void EndEffector::setTransform(const Vector3d& pos, const Matrix3d& rot, bool li
 {
 	if (limit_displacement) {
 		double displacement = (pos-position).norm();
-		double angle_change	= 2*asin((rot.col(0) - rotation.col(0)).norm()/2);
+		//double angle_change	= 2*asin((rot.col(0) - rotation.col(0)).norm()/2);
+		double angle_change	= angle_between(rot.col(0), rotation.col(0));
+		
 		Quaterniond new_q(rot);
 		Quaterniond last_q(rotation);
 		if (displacement > max_displacement) {
 			position = position + (max_displacement/displacement) * (pos-position);
+		} else {
+			position = pos;
 		}
 		if (angle_change > max_angle_change) {
 			Quaterniond interp_q = last_q.slerp(max_angle_change/angle_change, new_q);
 			rotation = interp_q.toRotationMatrix(); 
+		} else {
+			rotation = rot;
 		}
+		rotation.col(1) = rotation.col(2).cross(rotation.col(0));
+		rotation.col(2) = rotation.col(0).cross(rotation.col(1));
+		rotation.col(0).normalize();
+		rotation.col(1).normalize();
+		rotation.col(2).normalize();
 	} else {
 		position = pos;
     rotation = rot;
   }
   
-  if(isAttached()) {
+  if(isThreadAttached()) {
 		thread->updateConstrainedTransform(constraint_ind, position, rotation);
-		thread->minimize_energy();
-	}  
+		//thread->minimize_energy();
+	}
+	if(isNeedleAttached()) {
+		vector<Box*> boxes;
+		world->getObjects<Box>(boxes);
+		Box* box = NULL;
+		for (int i = 0; i < boxes.size(); i++) {
+			if (boxes[i]->isNeedleAttached() && (boxes[i]->getNeedle() == needle)) {
+				box = boxes[i];
+				break;
+			}
+		}
+		
+		if (box!=NULL) {	//box has needle
+			if (box->constraint0!=-1 && box->constraint1!=-1) {
+			
+			} else if (box->constraint0!=-1) {
+				
+			}
+			
+			needle->setTransformFromEndEffectorBoxConstrained(position, rotation);
+			//cout << "party_in_the_box" << endl;
+			
+		} else {
+			needle->setTransformFromEndEffector(position, rotation);		
+			
+		}
+
+		
+	}
 	
+	updateIntersectionObjects();
+}
+
+void EndEffector::updateIntersectionObjects()
+{
 	Vector3d start_pos;
 	Vector3d end_pos;
 	Vector3d new_pos;
@@ -255,6 +302,31 @@ void EndEffector::setTransform(const Vector3d& pos, const Matrix3d& rot, bool li
 	}
 }
 
+void EndEffector::updateTransformFromAttachment()
+{
+	if (isThreadAttached()) {
+		position = thread->positionAtConstraint(constraint_ind);
+		rotation = thread->rotationAtConstraint(constraint_ind);
+		updateIntersectionObjects();
+	}
+	if (isNeedleAttached()) {
+		vector<Box*> boxes;
+		world->getObjects<Box>(boxes);
+		bool has_box_needle = false;
+		for (int i = 0; i < boxes.size(); i++) {
+			if (boxes[i]->isNeedleAttached() && (boxes[i]->getNeedle() == needle)) {
+				has_box_needle = true;
+				break;
+			}
+		}
+		if (!has_box_needle) {
+			needle->updateTransformFromAttachment();
+		}
+		needle->getEndEffectorTransform(position, rotation);
+		updateIntersectionObjects();
+	}
+}
+
 void EndEffector::draw()
 {
 	glColor3f(color0, color1, color2);
@@ -263,7 +335,7 @@ void EndEffector::draw()
 	drawSphere(i_objs[1]->_end_pos, i_objs[1]->_radius);
  	
  	int obj_ind;
-  for (obj_ind = 2; obj_ind<2+pieces-1; obj_ind++) {
+  for (obj_ind = 3; obj_ind<2+pieces-1; obj_ind++) {
  		drawCylinder(i_objs[obj_ind]->_start_pos, i_objs[obj_ind]->_end_pos, i_objs[obj_ind]->_radius);
 		drawSphere(i_objs[obj_ind]->_start_pos, i_objs[obj_ind]->_radius);
 	}	
@@ -271,7 +343,7 @@ void EndEffector::draw()
 	drawSphere(i_objs[obj_ind]->_start_pos, i_objs[obj_ind]->_radius);
 	drawSphere(i_objs[obj_ind]->_end_pos, i_objs[obj_ind]->_radius);
 	
-	for (obj_ind++; obj_ind<2+2*pieces-1; obj_ind++) {
+	for (obj_ind+=2; obj_ind<2+2*pieces-1; obj_ind++) {
  		drawCylinder(i_objs[obj_ind]->_start_pos, i_objs[obj_ind]->_end_pos, i_objs[obj_ind]->_radius);
 		drawSphere(i_objs[obj_ind]->_start_pos, i_objs[obj_ind]->_radius);
 	}	
@@ -280,9 +352,16 @@ void EndEffector::draw()
 	drawSphere(i_objs[obj_ind]->_end_pos, i_objs[obj_ind]->_radius);
   
   glColor3f(0.3, 0.3, 0.0);
-  drawCylinder(i_objs[0]->_start_pos, i_objs[0]->_end_pos, i_objs[0]->_radius);
-	drawSphere(i_objs[0]->_start_pos, i_objs[0]->_radius);
-	drawSphere(i_objs[0]->_end_pos, i_objs[0]->_radius);
+  drawCylinder(i_objs[2]->_start_pos, i_objs[2]->_end_pos, i_objs[2]->_radius);
+	drawSphere(i_objs[2]->_start_pos, i_objs[2]->_radius);
+	drawCylinder(i_objs[5]->_start_pos, i_objs[5]->_end_pos, i_objs[5]->_radius);
+	drawSphere(i_objs[5]->_start_pos, i_objs[5]->_radius);
+  
+  //capsule representing possible attachment of cursor
+//  glColor3f(0.3, 0.3, 0.0);
+//  drawCylinder(i_objs[0]->_start_pos, i_objs[0]->_end_pos, i_objs[0]->_radius);
+//	drawSphere(i_objs[0]->_start_pos, i_objs[0]->_radius);
+//	drawSphere(i_objs[0]->_end_pos, i_objs[0]->_radius);
 	
 	//To visualize the collision capsule
 	//const Vector3d start = i_objs[1]->_start_pos + 2.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized();
@@ -290,6 +369,35 @@ void EndEffector::draw()
 	//drawCylinder(start, end, 1.2*i_objs[1]->_radius);
 	//drawSphere(start, 1.2*i_objs[1]->_radius);
 	//drawSphere(end, 1.2*i_objs[1]->_radius);
+}
+
+void EndEffector::drawDebug()
+{
+	return;
+	
+	//To visualize the collision capsule
+	glColor3f(0,1,0);
+	const Vector3d start = i_objs[1]->_start_pos + 2.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized();
+	const Vector3d end = i_objs[1]->_end_pos;
+	drawCylinder(start, end, 1.2*i_objs[1]->_radius);
+	drawSphere(start, 1.2*i_objs[1]->_radius);
+	drawSphere(end, 1.2*i_objs[1]->_radius);
+	
+	Vector3d direction;
+	vector<Box*> boxes;
+	world->getObjects<Box>(boxes);
+	vector<EndEffector*> ee_effs;
+	world->getObjects<EndEffector>(ee_effs);
+	if (boxes.size() > 0 && this == ee_effs[2]) {
+		double dist = capsuleBoxDistance(start, end, 1.2*i_objs[1]->_radius, boxes[0]->getPosition(), boxes[0]->getHalfLength(), direction);
+		//if (dist < 0) {
+			cout << dist << endl;
+			glColor3f(0,0,1);
+			//drawSphere(positionWorldOnA, 2.0);		
+			//drawSphere(positionWorldOnB, 2.0);
+			drawArrow(Vector3d::Zero(), direction);
+		//}
+	}
 }
 
 void EndEffector::updateConstraint()
@@ -388,12 +496,27 @@ double EndEffector::capsuleRepulsionEnergy(const Vector3d& start, const Vector3d
 	}
 	return energy;
 	*/
+//	if (REPULSION_COEFF <= 0.0) { return 0.0; }
+//	Vector3d direction;
+//	double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
+//	if (dist > radius)
+//		return 0.0;
+//	return REPULSION_COEFF/2.0 * pow(dist-radius,2);
+//	
+//	
 	if (REPULSION_COEFF <= 0.0) { return 0.0; }
 	Vector3d direction;
-	double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
-	if (dist < 0 || dist > radius)
-		return 0.0;
-	return REPULSION_COEFF/2.0 * pow(dist-radius,2);
+	const double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
+	return repulsionEnergy(dist, radius, direction);
+	
+	//dist < 0 || 
+	
+//	if (dist < 0) {
+//		return REPULSION_COEFF/2.0 * pow(dist-radius,2);
+//	} else if (dist <= radius) {
+//		return REPULSION_COEFF/2.0 * pow(dist-radius,2);
+//	}
+//	return 0.0;
 }
 
 void EndEffector::capsuleRepulsionEnergyGradient(const Vector3d& start, const Vector3d& end, const double radius, Vector3d& gradient)
@@ -408,10 +531,18 @@ void EndEffector::capsuleRepulsionEnergyGradient(const Vector3d& start, const Ve
 		gradient -= REPULSION_COEFF * (radius - dist) * direction.normalized();
 	}
 	*/
+	
 	if (REPULSION_COEFF <= 0.0) { return; }
 	Vector3d direction;
-	double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
-	if (dist < 0 || dist > radius)
-		return;
-	gradient -= REPULSION_COEFF * (radius - dist) * direction.normalized();
+	const double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
+	gradient -= repulsionEnergyGradient(dist, radius, direction);
+	
+//	if (REPULSION_COEFF <= 0.0) { return; }
+//	Vector3d direction;
+//	double dist = capsuleCapsuleDistance(start, end, radius, i_objs[1]->_start_pos + 9.0*(i_objs[1]->_start_pos - i_objs[1]->_end_pos).normalized(), i_objs[1]->_end_pos, i_objs[1]->_radius, direction);
+//	if (dist < 0) {					
+//		gradient -= REPULSION_COEFF * (radius - dist) * direction.normalized();
+//	} else if (dist <= radius) {
+//		gradient -= REPULSION_COEFF * (radius - dist) * direction.normalized();
+//	}
 }

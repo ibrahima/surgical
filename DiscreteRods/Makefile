@@ -4,7 +4,7 @@ UTILS_DIR = ../utils
 IO_DIR = IO
 ENV_DIR = EnvObjects
 COLLISIONS_DIR = Collisions
-BULLET_DIR = /home/alex/Downloads/bullet-2.77/src
+BULLET_DIR = /home/ibrahim/Downloads/bullet-2.77/src
 MP_DIR = ../MotionPlanning
 
 ifeq ($(MACHINE),Darwin)
@@ -14,7 +14,7 @@ ifeq ($(MACHINE),Darwin)
     LDFLAG=$(COMPILEFLAG) -L"/System/Library/Frameworks/OpenGL.framework/Libraries" -L"/System/Library/Frameworks/GLUT.framework" -framework GLUT -framework OpenGL -lGL -lGLU -L/usr/X11R6/lib
     INCLUDES = -I/usr/local/include/ -I/usr/include/ -I $(UTILS_DIR)/ -I/opt/local/include/eigen2/ -I/opt/local/include/
 else
-    LIBS = -L/usr/lib/ -lglut -lgle -lIL -lGLU -lBulletDynamics -lBulletCollision
+    LIBS = -L/usr/lib/ -lglut -lgle -lIL -lGLU -lLinearMath -lBulletDynamics -lBulletCollision
     INCLUDES = -I/usr/local/include/ -I/usr/include/ -I $(UTILS_DIR)/ -I/usr/include/eigen2 -I/usr/local/include/bullet
     COMPILEFLAG=
     LDFLAG=-lrt
@@ -87,7 +87,7 @@ Mouse.o: $(IO_DIR)/Mouse.cpp
 
 Haptic.o: $(IO_DIR)/Haptic.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(IO_DIR)/Haptic.cpp $(PROFILER)
-	
+
 Control.o: $(IO_DIR)/Control.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(IO_DIR)/Control.cpp $(PROFILER)
 
@@ -106,7 +106,7 @@ EndEffector.o: $(ENV_DIR)/EndEffector.cpp
 
 InfinitePlane.o: $(ENV_DIR)/InfinitePlane.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(ENV_DIR)/InfinitePlane.cpp $(PROFILER)
-	
+
 TexturedSphere.o: $(ENV_DIR)/TexturedSphere.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(ENV_DIR)/TexturedSphere.cpp $(PROFILER)
 
@@ -116,16 +116,16 @@ Box.o: $(ENV_DIR)/Box.cpp
 Needle.o: $(ENV_DIR)/Needle.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(ENV_DIR)/Needle.cpp $(PROFILER)
 
-	
+
 drawUtils.o: $(UTILS_DIR)/drawUtils.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(UTILS_DIR)/drawUtils.cpp $(PROFILER)
-	
+
 imageloader.o: $(UTILS_DIR)/imageloader.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(UTILS_DIR)/imageloader.cpp $(PROFILER)
-	
+
 collisionUtils.o: $(COLLISIONS_DIR)/collisionUtils.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(COLLISIONS_DIR)/collisionUtils.cpp $(PROFILER)
-	
+
 StateRecorder.o: StateRecorder.cpp
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c StateRecorder.cpp $(PROFILER)
 
@@ -177,7 +177,7 @@ text3d.o: text3d.cpp text3d.h
 
 Socket.o : $(SOCKETS_DIR)/Socket.cpp $(SOCKETS_DIR)/Socket.h
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(SOCKETS_DIR)/Socket.cpp
-	
+
 UDPSocket.o : $(SOCKETS_DIR)/UDPSocket.cpp $(SOCKETS_DIR)/UDPSocket.h
 	$(CC) $(INCLUDES) $(DEBUG) $(NDEBUG) -c $(SOCKETS_DIR)/UDPSocket.cpp
 
@@ -192,5 +192,4 @@ worldSQP.o: $(MP_DIR)/worldSQP.cpp $(MP_DIR)/worldSQP.h
 
 clean:
 	rm -r *.o *.gch testThreadDiscrete testThreadDiscrete_noniso testThreadDiscrete_phantom testThreadDiscrete_pickUp saveThreadTrajectory recordThreadVideo thread_visualize_and_save thread_visualize_and_save_noniso *.dSYM
-
 

@@ -490,7 +490,15 @@ void processNormalKeys(unsigned char key, int x, int y)
 				vector<World*> traj_out; 			
 				openLoopController(temp_worlds[0], temp_worlds, controls, traj_out);
 				setVisualizationData(traj_out);
-			
+				break;
+				
+//				VectorXd u(12);
+//				u.setZero();
+//				for(int i =0; i<temp_worlds.size(); i++) {
+//					temp_worlds[i]->applyRelativeControlJacobian(u);
+//				}
+//				setVisualizationData(temp_worlds);
+				
 				//TrajectoryRecorder rec(icc_traj_pert_path); //TODO output world trajectory file generated from control trajectory
 				TrajectoryRecorder rec("c2_test");
 				rec.start();
@@ -667,6 +675,12 @@ void checkMouseUpdate()
 	}
 }
 
+void processIdle()
+{
+	processHapticDevice();
+	//checkMouseUpdate();
+}
+
 void drawStuff()
 {
 #ifdef VIEW3D
@@ -709,6 +723,7 @@ void drawStuff()
   }
   if (world && drawInteractiveWorld) {
    	world->draw(examine_mode);
+   	world->drawDebug();
   }
   if (start_world && drawStartWorld) {
   	start_world->draw();
@@ -810,8 +825,7 @@ int main (int argc, char * argv[])
   glutKeyboardFunc(processNormalKeys);
   glutKeyboardUpFunc(processKeyUp);
   glutSpecialFunc(processSpecialKeys);
-  glutIdleFunc(processHapticDevice);
-  glutIdleFunc(checkMouseUpdate);
+  glutIdleFunc(processIdle);
  
 	
 	/* create popup menu */
@@ -1070,7 +1084,7 @@ void glutMenu(int ID) {
 
 void interruptHandler(int sig) {
   cout << "Time since last interrupt: " << interruptTimer->elapsed() << endl; 
-  if (interruptTimer->elapsed() < 0.1) exit(0);
+  if (interruptTimer->elapsed() < 10) exit(0);
   cout << "You need to hold ctrl-c to forcefully exit the program!" << endl;
 
   interruptTimer->restart();
